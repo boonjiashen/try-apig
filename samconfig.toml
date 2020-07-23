@@ -1,4 +1,4 @@
-git sversion = 0.1
+version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
