@@ -9,10 +9,12 @@ Description: >
 Globals:
   Function:
     Timeout: 20
+    Tracing: Active
   Api:
     # This removes the "Stage" stage automatically created
     # See https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html#sam-resource-api-properties
     OpenApiVersion: 3.0.1
+    TracingEnabled: true
 
 Resources:
   HelloWorldFunction:
