@@ -1,0 +1,52 @@
+openapi: 3.0.1
+info:
+  version: '1.0'
+  title:
+    Ref: AWS::StackName
+paths:
+  "/hello-in-openapi":
+    get:
+      x-amazon-apigateway-integration:
+        httpMethod: GET
+        type: aws
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
+      consumes:
+        - application/json
+      produces:
+        - application/json
+#              options:
+#                x-amazon-apigateway-integration:
+#                  type: mock
+#                  requestTemplates:
+#                    application/json: |
+#                      {
+#                        "statusCode" : 200
+#                      }
+#                  responses:
+#                    default:
+#                      statusCode: '200'
+#                      responseTemplates:
+#                        application/json: "{}\n"
+#                      responseParameters:
+#                        method.response.header.Access-Control-Allow-Headers: headers
+#                        method.response.header.Access-Control-Allow-Origin: origins
+#                        method.response.header.Access-Control-Allow-Methods: methods
+#                        method.response.header.Access-Control-Allow-Credentials: "'true'"
+#                consumes:
+#                  - application/json
+#                summary: CORS support
+#                responses:
+#                  '200':
+#                    headers:
+#                      Access-Control-Allow-Origin:
+#                        type: string
+#                      Access-Control-Allow-Headers:
+#                        type: string
+#                      Access-Control-Allow-Methods:
+#                        type: string
+#                      Access-Control-Allow-Credentials:
+#                        type: string
+#                    description: Default response for CORS method
+#                produces:
+#                  - application/json
