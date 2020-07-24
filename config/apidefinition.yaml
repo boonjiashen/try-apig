@@ -16,49 +16,28 @@ components:
         location:
           type: string
 paths:
-  "/hello-world":
+  /hello-world:
     get:
       x-amazon-apigateway-integration:
-        httpMethod: GET
+        # HTTP method needs to be POST for custom Lambda integration, otherwise you get
+        # "Unable to determine service/operation name to be authorized" at runtime
+        # See https://github.com/awslabs/serverless-application-model/issues/430#issuecomment-389271807
+        httpMethod: POST
         type: aws
         uri:
           Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
+        # Sets output mapping from integration response to method response
+        # Otherwise runtime throws "Execution failed due to configuration error: No match for output mapping and no default output mapping configured."
+        responses:
+          default:
+            statusCode: '200'
       consumes:
         - application/json
       produces:
         - application/json
-#              options:
-#                x-amazon-apigateway-integration:
-#                  type: mock
-#                  requestTemplates:
-#                    application/json: |
-#                      {
-#                        "statusCode" : 200
-#                      }
-#                  responses:
-#                    default:
-#                      statusCode: '200'
-#                      responseTemplates:
-#                        application/json: "{}\n"
-#                      responseParameters:
-#                        method.response.header.Access-Control-Allow-Headers: headers
-#                        method.response.header.Access-Control-Allow-Origin: origins
-#                        method.response.header.Access-Control-Allow-Methods: methods
-#                        method.response.header.Access-Control-Allow-Credentials: "'true'"
-#                consumes:
-#                  - application/json
-#                summary: CORS support
-#                responses:
-#                  '200':
-#                    headers:
-#                      Access-Control-Allow-Origin:
-#                        type: string
-#                      Access-Control-Allow-Headers:
-#                        type: string
-#                      Access-Control-Allow-Methods:
-#                        type: string
-#                      Access-Control-Allow-Credentials:
-#                        type: string
-#                    description: Default response for CORS method
-#                produces:
-#                  - application/json
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelloWorldResponse'
