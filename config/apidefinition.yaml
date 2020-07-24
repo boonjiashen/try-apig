@@ -3,14 +3,26 @@ info:
   version: '1.0'
   title:
     Ref: AWS::StackName
+components:
+  schemas:
+    HelloWorldResponse:
+      type: object
+      required:
+        - message
+        - location
+      properties:
+        message:
+          type: string
+        location:
+          type: string
 paths:
-  "/hello-in-openapi":
+  "/hello-world":
     get:
       x-amazon-apigateway-integration:
         httpMethod: GET
         type: aws
         uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
       consumes:
         - application/json
       produces:
