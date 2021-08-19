@@ -1,0 +1,28 @@
+swagger: "2.0"
+basePath: "/default"
+schemes:
+  - "https"
+paths:
+  /:
+    post:
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        type: "aws"
+        credentials:
+          Fn::Sub: ${DynamoDbApiRole.Arn}
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:dynamodb:action/ExportTableToPointInTime"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+definitions:
+  Empty:
+    type: "object"
+    title: "Empty Schema"

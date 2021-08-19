@@ -17,6 +17,35 @@ Globals:
     TracingEnabled: true
 
 Resources:
+  Table:
+    Type: AWS::Serverless::SimpleTable
+    Properties: {}
+
+  DynamoDbApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: default
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: config/ddb-api.yaml
+
+  DynamoDbApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
   Api:
     Type: AWS::Serverless::Api
     Properties:
