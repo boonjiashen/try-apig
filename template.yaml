@@ -15,11 +15,25 @@ Globals:
     # See https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html#sam-resource-api-properties
     OpenApiVersion: 3.0.1
     TracingEnabled: true
+    MethodSettings:
+      - ResourcePath: /*
+        HttpMethod: '*'  # Removing single quotes will throw "Error: Failed to parse template"
+        MetricsEnabled: true
+        DataTraceEnabled: true
 
 Resources:
   Table:
-    Type: AWS::Serverless::SimpleTable
-    Properties: {}
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
   DynamoDbApi:
     Type: AWS::Serverless::Api
@@ -50,11 +64,6 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: my-stage
-      MethodSettings:
-        - ResourcePath: /*
-          HttpMethod: '*'  # Removing single quotes will throw "Error: Failed to parse template"
-          MetricsEnabled: true
-          DataTraceEnabled: true
       # Running AWS::Include in DefinitionBody rather than using DefinitionUri
       # because DefinitionUri doesn't support !Sub
       # See https://github.com/awslabs/serverless-application-model/issues/305#issuecomment-562653339
