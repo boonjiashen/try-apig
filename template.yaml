@@ -21,7 +21,17 @@ Globals:
         MetricsEnabled: true
         DataTraceEnabled: true
 
+Parameters:
+  StageName:
+    Default: Default
+    Type: String
+    Description: Stage name of APIs
+
 Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties: {}
+
   Table:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -38,12 +48,109 @@ Resources:
   DynamoDbApi:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: default
+      StageName: !Ref StageName
       DefinitionBody:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
             Location: config/ddb-api.yaml
+
+  TableExporter:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Definition:
+        Comment: |
+          Exports a DynamoDB table to S3. Specifically, it calls DynamoDB:ExportTableToPointInTime
+          and polls until the export reaches a terminal state, i.e., success or failure.
+
+          Optional input
+          ---
+
+          {
+            "Overrides": {
+              "ClientToken": "<CLIENT_TOKEN>"
+            }
+          }
+
+          Description
+          ---
+
+          ClientToken:
+            For development purposes, you can override the client token of ExportTableToPointInTime to poll an ongoing
+            export rather than initiate a new one. To get this value, go to a previous execution of this state machine,
+            go to the step output of the `Export table` state, and copy the value of "ClientToken".
+        StartAt: Override client token?
+        States:
+          Override client token?:
+            Type: Choice
+            Choices:
+              - Variable: "$$.Execution.Input.Overrides.ClientToken"
+                IsPresent: true
+                Next: "[Override client token?] Yes"
+            Default: "[Override client token?] No"
+          "[Override client token?] Yes":
+            Type: Pass
+            Next: Export table
+            Parameters:
+              ClientToken.$: "$$.Execution.Input.Overrides.ClientToken"
+          "[Override client token?] No":
+            Type: Pass
+            Next: Export table
+            Parameters:
+              ClientToken.$: "$$.Execution.Name"
+          Export table:
+            Parameters:
+              ApiEndpoint: !Sub "${DynamoDbApi}.execute-api.${AWS::Region}.amazonaws.com"
+              Stage: !Ref StageName
+              AuthType: IAM_ROLE
+              Method: POST
+              RequestBody:
+                TableArn: !GetAtt Table.Arn
+                S3Bucket: !Ref Bucket
+                ClientToken.$: $$.Execution.Name
+            Resource: arn:aws:states:::apigateway:invoke
+            Type: Task
+            Next: Export failed, succeeded, or in progress?
+            ResultSelector:
+              ResponseBody.$: "$.ResponseBody"
+            ResultPath: "$"
+          Export failed, succeeded, or in progress?:
+            Type: Choice
+            Choices:
+              - And:
+                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                    IsPresent: true
+                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                    StringEquals: COMPLETED
+                Next: Export succeeded
+              - And:
+                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                    IsPresent: true
+                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                    StringEquals: IN_PROGRESS
+                Next: Export in progress
+            Default: Export failed
+          Export failed:
+            Type: Pass
+            Next: Fail
+          Fail:
+            Type: Fail
+          Export succeeded:
+            Type: Pass
+            Next: Continue with life
+          Continue with life:
+            Type: Pass
+            End: true
+          Export in progress:
+            Type: Pass
+            Next: Wait
+          Wait:
+            Type: Wait
+            Seconds: 5
+            Next: Override client token?
+
+      Policies:
+        - arn:aws:iam::aws:policy/AdministratorAccess
 
   DynamoDbApiRole:
     Type: AWS::IAM::Role
