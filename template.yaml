@@ -79,54 +79,50 @@ Resources:
             For development purposes, you can override the client token of ExportTableToPointInTime to poll an ongoing
             export rather than initiate a new one. To get this value, go to a previous execution of this state machine,
             go to the step output of the `Export table` state, and copy the value of "ClientToken".
-        StartAt: Override client token?
+        StartAt: "Construct export RequestBody"
         States:
-          Override client token?:
-            Type: Choice
-            Choices:
-              - Variable: "$$.Execution.Input.Overrides.ClientToken"
-                IsPresent: true
-                Next: "[Override client token?] Yes"
-            Default: "[Override client token?] No"
-          "[Override client token?] Yes":
-            Type: Pass
-            Next: Export table
+          Construct export RequestBody:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
             Parameters:
-              ClientToken.$: "$$.Execution.Input.Overrides.ClientToken"
-          "[Override client token?] No":
-            Type: Pass
+              FunctionName: !Ref MapMerger
+              Payload:
+                overridden:
+                  ClientToken.$: "$$.Execution.Name"
+                  TableArn: !GetAtt Table.Arn
+                  S3Bucket: !Ref Bucket
+                overrider.$: "$$.Execution.Input"
             Next: Export table
-            Parameters:
-              ClientToken.$: "$$.Execution.Name"
+            ResultSelector:
+              Tmp.$: "$.Payload"
+            OutputPath: "$.Tmp"
           Export table:
             Parameters:
               ApiEndpoint: !Sub "${DynamoDbApi}.execute-api.${AWS::Region}.amazonaws.com"
               Stage: !Ref StageName
               AuthType: IAM_ROLE
               Method: POST
-              RequestBody:
-                TableArn: !GetAtt Table.Arn
-                S3Bucket: !Ref Bucket
-                ClientToken.$: $$.Execution.Name
+              RequestBody.$: "$"
             Resource: arn:aws:states:::apigateway:invoke
             Type: Task
             Next: Export failed, succeeded, or in progress?
+            # Output is the value key'd on "ResponseBody" of result
             ResultSelector:
-              ResponseBody.$: "$.ResponseBody"
-            ResultPath: "$"
+              Tmp.$: "$.ResponseBody"
+            OutputPath: "$.Tmp"
           Export failed, succeeded, or in progress?:
             Type: Choice
             Choices:
               - And:
-                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                  - Variable: "$.ExportDescription.ExportStatus"
                     IsPresent: true
-                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                  - Variable: "$.ExportDescription.ExportStatus"
                     StringEquals: COMPLETED
                 Next: Export succeeded
               - And:
-                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                  - Variable: "$.ExportDescription.ExportStatus"
                     IsPresent: true
-                  - Variable: "$.ResponseBody.ExportDescription.ExportStatus"
+                  - Variable: "$.ExportDescription.ExportStatus"
                     StringEquals: IN_PROGRESS
                 Next: Export in progress
             Default: Export failed
@@ -137,18 +133,17 @@ Resources:
             Type: Fail
           Export succeeded:
             Type: Pass
-            Next: Continue with life
-          Continue with life:
-            Type: Pass
             End: true
           Export in progress:
             Type: Pass
-            Next: Wait
-          Wait:
+            Next: Wait before polling again
+            # Clear output since next states need no input
+            Result: {}
+            ResultPath: $
+          Wait before polling again:
             Type: Wait
-            Seconds: 5
-            Next: Override client token?
-
+            Seconds: 30
+            Next: "Construct export RequestBody"
       Policies:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
@@ -179,6 +174,35 @@ Resources:
           Name: AWS::Include
           Parameters:
             Location: config/apidefinition.yaml
+
+  MapMerger:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: |
+        Merges two simple maps, e.g.,
+        {
+          "overrider": {
+            "b": "I win",
+            "c": "I win too",
+            "d": 1
+          },
+          "overridden": {
+            "a": 2,
+            "b": "I lose",
+            "c": "I lose too",
+          }
+        }
+        ...returns:
+        {
+          "a": 2,
+          "b": "I win",
+          "c": "I win too",
+          "d": 1
+        }
+      Runtime: python3.9
+      Handler: index.handler
+      InlineCode: |
+        handler = lambda event, _: event['overridden'] | event['overrider']
 
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
